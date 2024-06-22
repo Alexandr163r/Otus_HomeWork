@@ -94,6 +94,8 @@ postgres(#     name VARCHAR(255)
 postgres(# );
 CREATE TABLE
 ```
+Подключение из внешней среды, подключался через дбивер на винде. для подключения пришлось прокинуть хост wsl 172.29.136.64 в pg_hba.conf. 
+
 Заполняем смотрим
 ```bash
 postgres=# INSERT INTO test_table (name) VALUES ('1'), ('2');
