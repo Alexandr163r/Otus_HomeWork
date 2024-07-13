@@ -12,3 +12,4 @@
 6. [Домашнее задание 6](HomeWork/Homework_6.md): Работа с журналами
 7. [Домашнее задание 7](HomeWork/Homework_7.md): Блокировки 
 8. [Домашнее задание 8](HomeWork/Homework_8.md): Нагрузочное тестирование и тюнинг PostgreSQL
+9. [Домашнее задание 9](HomeWork/Homework_9.md): Бэкапы
