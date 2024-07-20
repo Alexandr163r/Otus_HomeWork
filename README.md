@@ -13,3 +13,4 @@
 7. [Домашнее задание 7](HomeWork/Homework_7.md): Блокировки 
 8. [Домашнее задание 8](HomeWork/Homework_8.md): Нагрузочное тестирование и тюнинг PostgreSQL
 9. [Домашнее задание 9](HomeWork/Homework_9.md): Бэкапы
+10. [Домашнее задание 10](HomeWork/Homework_10.md): Репликация
