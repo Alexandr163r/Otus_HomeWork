@@ -33,8 +33,8 @@ CREATE TABLE ticket_flights_business
 
 2) копируем данные в нашу партицию из первоисточника
 ```sql
-INSERT INTO bookings.ticket_flights_partitioned
-SELECT * FROM bookings.ticket_flights;
+INSERT INTO ticket_flights_partitioned
+SELECT * FROM ticket_flights;
 ```
 
 3) дропаем исходную таблицу 
@@ -44,7 +44,7 @@ DROP TABLE ticket_flights;
 тут возник нюанс, к сожалению ошибку я не записал, зависимость первичного ключа, и придложение все дропнуть каскадно, такого нам разумеется не нужно, так что дропаем ключ 
 
 ```
-ALTER TABLE bookings.boarding_passes
+ALTER TABLE boarding_passes
 DROP CONSTRAINT boarding_passes_ticket_no_fkey;
 ```
 а затем и таблицу 
@@ -53,7 +53,7 @@ DROP TABLE ticket_flights;
 ```
 меняем имя нашей партиции на имя бывшего источника 
 ```sql 
-ALTER TABLE bookings.ticket_flights_partitioned
+ALTER TABLE ticket_flights_partitioned
 RENAME TO ticket_flights;
 ```
 уже все работает, но нужно вернуть связку ключей.
@@ -66,7 +66,7 @@ FOREIGN KEY (ticket_no) REFERENCES bookings.ticket_flights(ticket_no);
 
 ```sql
 SELECT fare_conditions, count(*)
-FROM bookings.ticket_flights
+FROM ticket_flights
 GROUP BY fare_conditions  
 
 fare_conditions|count  |
@@ -78,7 +78,7 @@ Economy        |7392231|
 explain разумеется тоже 
 ```sql
 explain SELECT fare_conditions, count(*)
-FROM bookings.ticket_flights
+FROM ticket_flights
 GROUP BY fare_conditions;   
 
 QUERY PLAN                                                                                                                            |
