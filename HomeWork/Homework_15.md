@@ -334,16 +334,174 @@ END $$;
 
 
 ```sql 
+explain analyze SELECT s.skill_name, AVG(DATE_PART('year', AGE(e.date_of_birth))) AS avg_age
+FROM employee e
+JOIN employee_skill es ON e.id = es.employee_id
+JOIN skill s ON es.skill_id = s.id
+GROUP BY s.skill_name;
+ 
+ -- запрос первый (Список работников с необходимыми скилами, работавшие над проектами сдатой начала позже 2020 года, в отрасли в отрослях) с фильрацией по возрасту 
 explain analyze SELECT e.first_name, e.last_name, s.skill_name, s.skill_level
 FROM Employee e
 JOIN Employee_Skill es ON e.id = es.employee_id
 JOIN Skill s ON es.skill_id = s.id
 JOIN Employee_Position ep ON e.id = ep.employee_id
 JOIN Company c ON ep.company_id = c.id
-WHERE c.industry = 'Культура и искусство' and s.id in(1,5,3)
+WHERE c.industry = 'Культура и искусство' and s.id in (1,3,5) and e.date_of_birth >= '1980-01-01'
 AND e.id IN (
     SELECT employee_id
     FROM Employee_Project
     WHERE start_date >= '2020-01-01'
 );
+
+
+--запрос отобразит компании, в которых сотрудники с навыками уровня 5 работали на проектах, начавшихся с 1 января 2020 года.  
+explain analyze SELECT c.name AS company_name, s.skill_name, COUNT(es.id) AS employee_count
+FROM employee_skill es
+JOIN employee e ON es.employee_id = e.id
+JOIN employee_position ep ON e.id = ep.employee_id
+JOIN company c ON ep.company_id = c.id
+JOIN skill s ON es.skill_id = s.id
+JOIN employee_project epr ON e.id = epr.employee_id
+WHERE s.skill_level = 5
+AND epr.start_date >= '2020-01-01' 
+GROUP BY c.name, s.skill_name
+ORDER BY employee_count DESC;
+
+
+3й запрос 
+--в скольки проектах и компаниях работал Сотрудник за последние 5 лет  
+explain analyze select e.first_name, e.last_name,
+       COUNT(DISTINCT c.id) AS company_count,     -- Количество уникальных компаний
+       COUNT(DISTINCT epj.id) AS project_count    -- Количество уникальных проектов
+FROM employee e
+JOIN employee_project epj ON e.id = epj.employee_id
+JOIN employee_position epo ON e.id = epo.employee_id
+JOIN company c ON epo.company_id = c.id
+WHERE epj.start_date >= NOW() - INTERVAL '5 years'
+GROUP BY e.id;
 ```
+
+4) Скриншоты анализа запроса 1 и 3 
+ссыылка 1
+ссылка 2 
+
+5) Изменение изменение базы и добавление индексов 
+
+
+Вынос отрасли в отдельную справочную таблицу и замена тестовых строк с text на варчар
+```sql
+
+CREATE TABLE industry (
+    id serial4 NOT NULL,
+    industry_name text NOT NULL
+);
+
+INSERT INTO industry (industry_name)
+SELECT DISTINCT industry
+FROM employees.company
+WHERE industry IS NOT NULL;
+
+ALTER TABLE employees.company
+ADD COLUMN industry_id int4;
+
+
+UPDATE employees.company c
+SET industry_id = ir.id
+FROM industry ir
+WHERE c.industry = ir.industry_name;
+
+ALTER TABLE employees.company
+DROP COLUMN industry;
+
+ALTER TABLE employees.company
+    ALTER COLUMN "name" TYPE varchar(255),
+    ALTER COLUMN description TYPE varchar(2000);
+```
+Замена Text на в varchar в других таблицах 
+```sql
+ALTER TABLE employees.employee
+    ALTER COLUMN first_name TYPE varchar(255),
+    ALTER COLUMN last_name TYPE varchar(255),
+    ALTER COLUMN middle_name TYPE varchar(255),
+    ALTER COLUMN email TYPE varchar(255);
+
+ALTER TABLE employees.employees.project 
+	ALTER COLUMN project_name TYPE varchar(255),
+	ALTER COLUMN description TYPE varchar(2000)
+
+ALTER TABLE employees.employees.skill 
+	ALTER COLUMN skill_name TYPE varchar(255)
+	
+	
+ALTER TABLE employees.employees."position" 
+	ALTER COLUMN title TYPE varchar(255),	
+	ALTER COLUMN responsibilities TYPE varchar(2000)
+
+ALTER TABLE employees.employees.gender 
+	ALTER COLUMN gender_name TYPE varchar(100)
+```
+
+Разбиение employees.project на партиции по годам 
+
+```sql
+DO $$ 
+DECLARE 
+    start_year int := 1980;
+    end_year int := 2030;
+BEGIN 
+    FOR year IN start_year..end_year LOOP
+        EXECUTE format('
+            CREATE TABLE employees.employee_project_%s PARTITION OF employees.employee_project_new
+            FOR VALUES FROM (''%s-01-01'') TO (''%s-01-01'');
+        ', year, year, year + 1);
+    END LOOP;
+END $$;
+
+
+
+DO $$ 
+DECLARE 
+    start_year int := 1980;
+    end_year int := 2030;
+BEGIN 
+    FOR year IN start_year..end_year LOOP
+        EXECUTE format('
+            INSERT INTO employees.employee_project_%s
+            SELECT * FROM employees.employee_project
+            WHERE start_date >= ''%s-01-01'' AND start_date < ''%s-01-01'';
+        ', year, year, year + 1);
+    END LOOP;
+END $$;
+
+
+CREATE INDEX idx_employee_project_start_date_new
+ON employees.employee_project_new (start_date);
+
+
+CREATE INDEX idx_employee_project_start_date_new
+ON employees.employee_project_new (start_date);
+
+
+ALTER TABLE employees.employee_project_new
+ADD CONSTRAINT employee_project_employee_id_fkey_new 
+FOREIGN KEY (employee_id) REFERENCES employees.employee(id);
+
+ALTER TABLE employees.employee_project_new
+ADD CONSTRAINT employee_project_project_id_fkey_new 
+FOREIGN KEY (project_id) REFERENCES employees.project(id);
+
+
+ALTER TABLE employees.employee_project DROP CONSTRAINT employee_project_pkey;
+DROP INDEX IF EXISTS employees.idx_employee_project_start_date;
+ALTER TABLE employees.employee_project DROP CONSTRAINT employee_project_employee_id_fkey;
+ALTER TABLE employees.employee_project DROP CONSTRAINT employee_project_project_id_fkey;
+
+ALTER TABLE employees.employee_project RENAME TO employee_project_old;
+
+ALTER TABLE employees.employee_project_new RENAME TO employee_project;
+
+DROP TABLE employees.employee_project_old;
+
+```
+
